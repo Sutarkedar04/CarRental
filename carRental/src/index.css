@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* THEME TOKENS */
+@theme {
+  --color-primary: #feb800;
+  --color-secondary:#7DF9FF;
+
+  --color-dark: #111111;
+  --color-gray-dark: #313237;
+  --color-gray-medium: #636870;
+  --color-gray-light: #d7dae1;
+  --color-light: #fafafa;
+}
+@layer base {
+  html,
+  body {
+    @apply bg-dark text-light;
+  }
+}
