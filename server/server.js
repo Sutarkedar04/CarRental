@@ -1,25 +1,73 @@
-import express from "express";
-import cors from "cors";
-import "dotenv/config";
-import cookieParser from "cookie-parser"
-import connectDB from "./config/mongodb.js";
-import authRouter from "./routes/authRoutes.js"
-//import userRouter from "./routes/userRoutes.js";
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
+import connectDB from './config/mongodb.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 
+// Load env vars
+dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 4000
-connectDB();
+const PORT = process.env.PORT || 4000;
 
-//const allowedOrigins=['http://localhost:5174']
-
+// Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(cors({credentials:true}))
+// In server.js, update CORS:
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+}));
 
-//API endpoint
-app.get('/',(req,res)=> res.send("API working"));
-app.use('/api/auth',authRouter);
-//app.use('/api/user',userRouter);
+// ===== Routes =====
+import authRoutes from './routes/authRoutes.js';
+import carRoutes from './routes/carRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
-app.listen(port, ()=> console.log(`Server started on PORT:${port}`));
+
+app.use('/api/auth', authRoutes);
+app.use('/api/cars', carRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/users', userRoutes);
+
+
+// Test Endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Car Rental API is working',
+    endpoints: {
+      auth: '/api/auth',
+      cars: '/api/cars'
+      
+    }
+  });
+});
+
+// Error Handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Server Error'
+  });
+});
+
+
+
+const startServer = async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, () =>
+      console.log(`Server running on PORT: ${PORT}`)
+    );
+  } catch (error) {
+    console.error('Server failed to start because MongoDB is unavailable.');
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -1,85 +1,172 @@
-import React from 'react';
-import { FaCar, FaFacebook, FaTwitter, FaInstagram, FaYoutube } from 'react-icons/fa';
+// src/components/Footer.jsx
+import { Link } from 'react-router-dom';
+import { FaCar, FaFacebook, FaTwitter, FaInstagram, FaLinkedin, FaMapMarkerAlt, FaPhone, FaEnvelope, FaCreditCard } from 'react-icons/fa';
 
 const Footer = () => {
+  const currentYear = new Date().getFullYear();
+
   return (
-    <footer className="bg-black text-white">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <footer className="bg-gray-900 text-white">
+      {/* Main Footer */}
+      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           
-          {/* Brand */}
-          <div className="flex flex-col items-center md:items-start">
-            <div className="flex items-center mb-4">
-              <FaCar className="text-blue-500 text-3xl mr-2" />
-              <span className="text-2xl font-bold">PremiumRentals</span>
-            </div>
-            <p className="text-gray-400 text-center md:text-left">
-              Luxury car rental service with premium vehicles and exceptional customer service.
-            </p>
-          </div>
-
-          {/* Links */}
-          <div className="flex justify-around">
-            <div>
-              <h4 className="font-bold mb-4">Company</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-400 hover:text-white transition">About</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition">Careers</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition">Blog</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition">Press</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Support</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-400 hover:text-white transition">Help Center</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition">Safety</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white transition">Contact</a></li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Social & Newsletter */}
-          <div>
-            <h4 className="font-bold mb-4">Stay Connected</h4>
-            <div className="flex space-x-4 mb-6">
-              <a href="#" className="bg-gray-800 p-2 rounded-full hover:bg-blue-600 transition">
-                <FaFacebook />
-              </a>
-              <a href="#" className="bg-gray-800 p-2 rounded-full hover:bg-blue-400 transition">
-                <FaTwitter />
-              </a>
-              <a href="#" className="bg-gray-800 p-2 rounded-full hover:bg-pink-600 transition">
-                <FaInstagram />
-              </a>
-              <a href="#" className="bg-gray-800 p-2 rounded-full hover:bg-red-600 transition">
-                <FaYoutube />
-              </a>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm mb-2">Subscribe to our newsletter</p>
-              <div className="flex">
-                <input 
-                  type="email" 
-                  placeholder="Enter your email" 
-                  className="px-4 py-2 bg-gray-800 text-white rounded-l-lg focus:outline-none w-full"
-                />
-                <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-r-lg transition">
-                  →
-                </button>
+          {/* Company Info */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <FaCar className="text-xl" />
               </div>
+              <span className="text-xl font-bold">CarRental</span>
             </div>
+            <p className="text-gray-400">
+              Your trusted partner for premium car rentals. Experience luxury, comfort, and reliability with every journey.
+            </p>
+            <div className="flex gap-4">
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <FaFacebook size={20} />
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <FaTwitter size={20} />
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <FaInstagram size={20} />
+              </a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                <FaLinkedin size={20} />
+              </a>
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link to="/" className="text-gray-400 hover:text-white transition-colors">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link to="/cars" className="text-gray-400 hover:text-white transition-colors">
+                  Browse Cars
+                </Link>
+              </li>
+              <li>
+                <Link to="/about" className="text-gray-400 hover:text-white transition-colors">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact" className="text-gray-400 hover:text-white transition-colors">
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link to="/faq" className="text-gray-400 hover:text-white transition-colors">
+                  FAQ
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Services */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Services</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link to="/services/daily" className="text-gray-400 hover:text-white transition-colors">
+                  Daily Rentals
+                </Link>
+              </li>
+              <li>
+                <Link to="/services/weekly" className="text-gray-400 hover:text-white transition-colors">
+                  Weekly Rentals
+                </Link>
+              </li>
+              <li>
+                <Link to="/services/monthly" className="text-gray-400 hover:text-white transition-colors">
+                  Monthly Rentals
+                </Link>
+              </li>
+              <li>
+                <Link to="/services/luxury" className="text-gray-400 hover:text-white transition-colors">
+                  Luxury Cars
+                </Link>
+              </li>
+              <li>
+                <Link to="/services/business" className="text-gray-400 hover:text-white transition-colors">
+                  Business Travel
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Contact Info */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Contact Us</h3>
+            <ul className="space-y-3">
+              <li className="flex items-center gap-3">
+                <FaMapMarkerAlt className="text-blue-400" />
+                <span className="text-gray-400">123 Street, City, Country</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <FaPhone className="text-blue-400" />
+                <span className="text-gray-400">+1 (123) 456-7890</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <FaEnvelope className="text-blue-400" />
+                <span className="text-gray-400">info@carrental.com</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <FaCreditCard className="text-blue-400" />
+                <span className="text-gray-400">24/7 Booking Support</span>
+              </li>
+            </ul>
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 text-sm">
-          <p>© {new Date().getFullYear()} Premium Car Rentals. All rights reserved.</p>
-          <div className="mt-2">
-            <a href="#" className="hover:text-white transition mx-2">Privacy Policy</a>
-            <a href="#" className="hover:text-white transition mx-2">Terms of Use</a>
-            <a href="#" className="hover:text-white transition mx-2">Legal</a>
-            <a href="#" className="hover:text-white transition mx-2">Site Map</a>
+        {/* Payment Methods */}
+        <div className="mt-12 pt-8 border-t border-gray-800">
+          <h3 className="text-lg font-semibold mb-4 text-center">We Accept</h3>
+          <div className="flex flex-wrap justify-center gap-6">
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <span className="font-bold">VISA</span>
+            </div>
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <span className="font-bold">MasterCard</span>
+            </div>
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <span className="font-bold">PayPal</span>
+            </div>
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <span className="font-bold">Apple Pay</span>
+            </div>
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <span className="font-bold">Google Pay</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="bg-gray-950 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="text-gray-400 text-sm">
+              &copy; {currentYear} CarRental. All rights reserved.
+            </div>
+            <div className="flex gap-6 mt-4 md:mt-0">
+              <Link to="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
+                Privacy Policy
+              </Link>
+              <Link to="/terms" className="text-gray-400 hover:text-white text-sm transition-colors">
+                Terms of Service
+              </Link>
+              <Link to="/cookies" className="text-gray-400 hover:text-white text-sm transition-colors">
+                Cookie Policy
+              </Link>
+            </div>
           </div>
         </div>
       </div>

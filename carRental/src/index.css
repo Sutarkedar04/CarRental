@@ -2,8 +2,10 @@
 
 /* THEME TOKENS */
 @theme {
+  --font-anton: 'Anton', sans-serif;
+  --font-shoulders: 'Big Shoulders Display', sans-serif;
   --color-primary: #feb800;
-  --color-secondary:#7DF9FF;
+  --color-secondary: #7DF9FF;
 
   --color-dark: #111111;
   --color-gray-dark: #313237;
@@ -11,6 +13,7 @@
   --color-gray-light: #d7dae1;
   --color-light: #fafafa;
 }
+
 @layer base {
   html,
   body {
