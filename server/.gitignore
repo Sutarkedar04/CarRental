@@ -12,4 +12,4 @@ dist/
 build/
 
 # logs
-*.log
+*.logserver/scripts/createSuperAdmin.js
