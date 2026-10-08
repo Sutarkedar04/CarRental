@@ -16,29 +16,38 @@ const Navbar = () => {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+  let ticking = false;
 
-      // Never hide the navbar while the mobile menu is open
-      if (isMenuOpen) return;
+  const update = () => {
+    const currentScrollY = window.scrollY;
 
-      if (currentScrollY < 80) {
-        // Always show near the top of the page
-        setHidden(false);
-      } else if (currentScrollY > lastScrollY.current) {
-        // Scrolling down -> hide
-        setHidden(true);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling up -> show
-        setHidden(false);
-      }
+    if (isMenuOpen) {
+      ticking = false;
+      return;
+    }
 
-      lastScrollY.current = currentScrollY;
-    };
+    if (currentScrollY < 80) {
+      setHidden(false);
+    } else if (currentScrollY > lastScrollY.current) {
+      setHidden(true);
+    } else if (currentScrollY < lastScrollY.current) {
+      setHidden(false);
+    }
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [isMenuOpen]);
+    lastScrollY.current = currentScrollY;
+    ticking = false;
+  };
+
+  const handleScroll = () => {
+    if (!ticking) {
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }
+  };
+
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  return () => window.removeEventListener('scroll', handleScroll);
+}, [isMenuOpen]);
 
   useEffect(() => {
     controls.start(hidden ? 'hidden' : 'visible');

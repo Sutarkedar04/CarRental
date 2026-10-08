@@ -101,41 +101,50 @@ const UserBookingDetails = () => {
     }).format(amount || 0);
   };
 
-  const getStatusConfig = (status) => {
-    const configs = {
-      'pending': { 
-        color: 'bg-yellow-100 text-yellow-800', 
-        icon: <FaClock className="text-yellow-600" />,
-        label: 'Pending Confirmation',
-        message: 'Your booking is awaiting confirmation from the rental company.'
-      },
-      'confirmed': { 
-        color: 'bg-blue-100 text-blue-800', 
-        icon: <FaCheckCircle className="text-blue-600" />,
-        label: 'Confirmed',
-        message: 'Your booking has been confirmed. Get ready for your trip!'
-      },
-      'active': { 
-        color: 'bg-green-100 text-green-800', 
-        icon: <FaCar className="text-green-600" />,
-        label: 'Active',
-        message: 'You are currently renting this vehicle.'
-      },
-      'completed': { 
-        color: 'bg-gray-100 text-gray-800', 
-        icon: <FaCheckCircle className="text-gray-600" />,
-        label: 'Completed',
-        message: 'This rental has been completed. Thank you for choosing us!'
-      },
-      'cancelled': { 
-        color: 'bg-red-100 text-red-800', 
-        icon: <FaTimesCircle className="text-red-600" />,
-        label: 'Cancelled',
-        message: 'This booking has been cancelled.'
-      }
-    };
-    return configs[status] || configs['pending'];
+  // ─── Add this map just above getStatusConfig ─────────────────────────────────
+const STATUS_BG_MAP = {
+  pending:   'bg-yellow-50',
+  confirmed: 'bg-blue-50',
+  active:    'bg-green-50',
+  completed: 'bg-gray-50',
+  cancelled: 'bg-red-50',
+};
+
+const getStatusConfig = (status) => {
+  const configs = {
+    pending: {
+      color: 'bg-yellow-100 text-yellow-800',
+      icon: <FaClock className="text-yellow-600" />,
+      label: 'Pending Confirmation',
+      message: 'Your booking is awaiting confirmation from the rental company.',
+    },
+    confirmed: {
+      color: 'bg-blue-100 text-blue-800',
+      icon: <FaCheckCircle className="text-blue-600" />,
+      label: 'Confirmed',
+      message: 'Your booking has been confirmed. Get ready for your trip!',
+    },
+    active: {
+      color: 'bg-green-100 text-green-800',
+      icon: <FaCar className="text-green-600" />,
+      label: 'Active',
+      message: 'You are currently renting this vehicle.',
+    },
+    completed: {
+      color: 'bg-gray-100 text-gray-800',
+      icon: <FaCheckCircle className="text-gray-600" />,
+      label: 'Completed',
+      message: 'This rental has been completed. Thank you for choosing us!',
+    },
+    cancelled: {
+      color: 'bg-red-100 text-red-800',
+      icon: <FaTimesCircle className="text-red-600" />,
+      label: 'Cancelled',
+      message: 'This booking has been cancelled.',
+    },
   };
+  return configs[status] || configs.pending;
+};
 
   const calculateDays = () => {
     if (!booking?.startDate || !booking?.endDate) return 0;
@@ -325,17 +334,17 @@ const UserBookingDetails = () => {
             </div>
 
             {/* Status Message */}
-            <div className={`rounded-2xl shadow-lg overflow-hidden ${statusConfig.color.replace('text-', 'bg-').replace('800', '50')}`}>
-              <div className="p-6">
-                <div className="flex items-start gap-3">
-                  <div className="mt-1">{statusConfig.icon}</div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800 mb-1">Booking Status: {statusConfig.label}</h3>
-                    <p className="text-gray-600">{statusConfig.message}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+<div className={`rounded-2xl shadow-lg overflow-hidden ${STATUS_BG_MAP[booking.status] || 'bg-gray-50'}`}>
+  <div className="p-6">
+    <div className="flex items-start gap-3">
+      <div className="mt-1">{statusConfig.icon}</div>
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-1">Booking Status: {statusConfig.label}</h3>
+        <p className="text-gray-600">{statusConfig.message}</p>
+      </div>
+    </div>
+  </div>
+</div>
           </div>
 
           {/* Sidebar - Payment & Contact */}

@@ -1,8 +1,10 @@
-// src/pages/admin/UsersManagement.jsx - COMPLETE UPDATED VERSION WITH SUPER ADMIN
+// src/pages/admin/UsersManagement.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// add to the react-icons import
-import { FaUser, FaEnvelope, FaPhone, FaCrown, FaUserCircle, FaSearch, FaFilter, FaEdit, FaTrash, FaCheckCircle, FaTimesCircle, FaShieldAlt ,FaBan, FaStore ,FaUserCheck} from 'react-icons/fa';
+import {
+  FaUser, FaEnvelope, FaPhone, FaCrown, FaUserCircle, FaSearch, FaFilter,
+  FaEdit, FaTrash, FaCheckCircle, FaTimesCircle, FaShieldAlt, FaBan, FaStore, FaUserCheck
+} from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
@@ -22,6 +24,7 @@ const UsersManagement = () => {
     email: '',
     password: '',
     phone: '',
+    department: '',
     role: 'admin'
   });
   const [creatingAdmin, setCreatingAdmin] = useState(false);
@@ -39,15 +42,15 @@ const UsersManagement = () => {
     try {
       setLoading(true);
       const response = await api.get('/users');
-      
+
       const usersData = response.data?.data || response.data || [];
-      
+
       if (!Array.isArray(usersData)) {
         console.error('Users data is not an array:', usersData);
         setUsers([]);
         return;
       }
-      
+
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -56,21 +59,23 @@ const UsersManagement = () => {
       setLoading(false);
     }
   };
- const handleToggleSuspend = async (targetUser) => {
-  const action = targetUser.isSuspended ? 'reactivate' : 'suspend';
-  if (!window.confirm(`Are you sure you want to ${action} ${targetUser.name || 'this user'}?`)) {
-    return;
-  }
-  try {
-    await api.put(`/users/${targetUser._id}`, {
-      isSuspended: !targetUser.isSuspended,
-    });
-    fetchUsers();
-  } catch (error) {
-    console.error('Error updating suspension status:', error);
-    alert('Failed to update suspension status: ' + (error.response?.data?.message || error.message));
-  }
-};
+
+  const handleToggleSuspend = async (targetUser) => {
+    const action = targetUser.isSuspended ? 'reactivate' : 'suspend';
+    if (!window.confirm(`Are you sure you want to ${action} ${targetUser.name || 'this user'}?`)) {
+      return;
+    }
+    try {
+      await api.put(`/users/${targetUser._id}`, {
+        isSuspended: !targetUser.isSuspended,
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating suspension status:', error);
+      alert('Failed to update suspension status: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
   const handleDelete = async (userId) => {
     try {
       await api.delete(`/users/${userId}`);
@@ -83,37 +88,49 @@ const UsersManagement = () => {
   };
 
   const handleUpdateUser = async () => {
-  try {
-    await api.put(`/users/${editingUser._id}`, {
-      name: editingUser.name,
-      email: editingUser.email,
-      phone: editingUser.phone,
-      role: editingUser.role,
-      isVerified: editingUser.isVerified,
-      isSuspended: editingUser.isSuspended,
-      department: editingUser.role === 'admin' ? (editingUser.department || null) : null,
-    });
-    setEditingUser(null);
-    fetchUsers();
-  } catch (error) {
-    console.error('Error updating user:', error);
-    alert('Failed to update user: ' + (error.response?.data?.message || error.message));
-  }
-};
+    try {
+      await api.put(`/users/${editingUser._id}`, {
+        name: editingUser.name,
+        email: editingUser.email,
+        phone: editingUser.phone,
+        role: editingUser.role,
+        isVerified: editingUser.isVerified,
+        isSuspended: editingUser.isSuspended,
+        department: editingUser.role === 'admin' ? (editingUser.department || null) : null,
+      });
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to update user: ' + (error.response?.data?.message || error.message));
+    }
+  };
 
+  // ✅ FIX: hit the super-admin-only create-admin endpoint, not the public
+  // register endpoint. /auth/register silently downgrades role:'admin' to
+  // 'customer', so the previous implementation created ghost customer accounts.
   const handleCreateAdmin = async () => {
-    if (!newAdmin.name || !newAdmin.email || !newAdmin.password) {
-      alert('Please fill in all required fields');
+    if (!newAdmin.name || !newAdmin.email || !newAdmin.password || !newAdmin.phone || !newAdmin.department) {
+      alert('Please fill in all required fields (name, email, password, phone, department)');
+      return;
+    }
+
+    if (newAdmin.password.length < 8) {
+      alert('Admin password must be at least 8 characters');
       return;
     }
 
     try {
       setCreatingAdmin(true);
-      const response = await api.post('/auth/register', {
-        ...newAdmin,
-        role: 'admin'
+      const response = await api.post('/auth/create-admin', {
+        name: newAdmin.name,
+        email: newAdmin.email,
+        password: newAdmin.password,
+        phone: newAdmin.phone,
+        department: newAdmin.department,
+        role: 'admin',
       });
-      
+
       if (response.data.success) {
         alert('Admin created successfully!');
         setShowCreateAdminModal(false);
@@ -122,9 +139,10 @@ const UsersManagement = () => {
           email: '',
           password: '',
           phone: '',
+          department: '',
           role: 'admin'
         });
-        fetchUsers(); // Refresh user list
+        fetchUsers();
       } else {
         alert(response.data.message || 'Failed to create admin');
       }
@@ -137,15 +155,15 @@ const UsersManagement = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || 
+    const matchesStatus = statusFilter === 'all' ||
       (statusFilter === 'verified' ? user.isVerified : !user.isVerified);
-    
+
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -256,24 +274,12 @@ const UsersManagement = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -282,16 +288,16 @@ const UsersManagement = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
-  user.role === 'admin' ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
-  user.role === 'super_admin' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
-  user.role === 'dealer' ? 'bg-gradient-to-r from-green-500 to-green-600' :
-  'bg-gradient-to-r from-blue-500 to-blue-600'
-}`}>
-  {user.role === 'admin' && <FaShieldAlt className="text-white" />}
-  {user.role === 'super_admin' && <FaCrown className="text-white" />}
-  {user.role === 'dealer' && <FaStore className="text-white" />}
-  {user.role === 'customer' && <FaUserCircle className="text-white" />}
-</div>
+                          user.role === 'admin' ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
+                          user.role === 'super_admin' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                          user.role === 'dealer' ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                          'bg-gradient-to-r from-blue-500 to-blue-600'
+                        }`}>
+                          {user.role === 'admin' && <FaShieldAlt className="text-white" />}
+                          {user.role === 'super_admin' && <FaCrown className="text-white" />}
+                          {user.role === 'dealer' && <FaStore className="text-white" />}
+                          {user.role === 'customer' && <FaUserCircle className="text-white" />}
+                        </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
                             {user.name || 'No Name'}
@@ -311,16 +317,16 @@ const UsersManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-  user.role === 'super_admin' ? 'bg-yellow-100 text-yellow-800' :
-  user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-  user.role === 'dealer' ? 'bg-green-100 text-green-800' :
-  'bg-blue-100 text-blue-800'
-}`}>
-  {user.role === 'super_admin' ? 'Super Admin' :
-   user.role === 'admin' ? 'Administrator' :
-   user.role === 'dealer' ? 'Dealer' :
-   'Customer'}
-</span>
+                        user.role === 'super_admin' ? 'bg-yellow-100 text-yellow-800' :
+                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                        user.role === 'dealer' ? 'bg-green-100 text-green-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {user.role === 'super_admin' ? 'Super Admin' :
+                         user.role === 'admin' ? 'Administrator' :
+                         user.role === 'dealer' ? 'Dealer' :
+                         'Customer'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
@@ -346,42 +352,42 @@ const UsersManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex gap-3">
-  {(user.role !== 'super_admin' || isSuperAdmin) && (
-    <button
-      onClick={() => setEditingUser(user)}
-      className="text-blue-600 hover:text-blue-900 p-2 rounded-lg hover:bg-blue-50"
-      title="Edit User"
-    >
-      <FaEdit />
-    </button>
-  )}
+                        {(user.role !== 'super_admin' || isSuperAdmin) && (
+                          <button
+                            onClick={() => setEditingUser(user)}
+                            className="text-blue-600 hover:text-blue-900 p-2 rounded-lg hover:bg-blue-50"
+                            title="Edit User"
+                          >
+                            <FaEdit />
+                          </button>
+                        )}
 
-  {user._id !== currentUser._id &&
-   user.role !== 'super_admin' &&
-   (isSuperAdmin || user.role !== 'admin') && (
-    <button
-      onClick={() => handleToggleSuspend(user)}
-      className={`p-2 rounded-lg ${
-        user.isSuspended
-          ? 'text-green-600 hover:text-green-900 hover:bg-green-50'
-          : 'text-orange-600 hover:text-orange-900 hover:bg-orange-50'
-      }`}
-      title={user.isSuspended ? 'Reactivate User' : 'Suspend User'}
-    >
-      {user.isSuspended ? <FaUserCheck /> : <FaBan />}
-    </button>
-  )}
+                        {user._id !== currentUser._id &&
+                         user.role !== 'super_admin' &&
+                         (isSuperAdmin || user.role !== 'admin') && (
+                          <button
+                            onClick={() => handleToggleSuspend(user)}
+                            className={`p-2 rounded-lg ${
+                              user.isSuspended
+                                ? 'text-green-600 hover:text-green-900 hover:bg-green-50'
+                                : 'text-orange-600 hover:text-orange-900 hover:bg-orange-50'
+                            }`}
+                            title={user.isSuspended ? 'Reactivate User' : 'Suspend User'}
+                          >
+                            {user.isSuspended ? <FaUserCheck /> : <FaBan />}
+                          </button>
+                        )}
 
-  {user._id !== currentUser._id && user.role !== 'super_admin' && (
-    <button
-      onClick={() => setDeleteConfirm(user._id)}
-      className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50"
-      title="Delete User"
-    >
-      <FaTrash />
-    </button>
-  )}
-</div>
+                        {user._id !== currentUser._id && user.role !== 'super_admin' && (
+                          <button
+                            onClick={() => setDeleteConfirm(user._id)}
+                            className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50"
+                            title="Delete User"
+                          >
+                            <FaTrash />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -396,7 +402,7 @@ const UsersManagement = () => {
               </div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">No Users Found</h3>
               <p className="text-gray-500">
-                {users.length === 0 
+                {users.length === 0
                   ? "No users registered yet."
                   : "No users match your search criteria."}
               </p>
@@ -442,178 +448,171 @@ const UsersManagement = () => {
                 ×
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Name */}
               <div>
-  <label className="block text-gray-700 text-sm font-medium mb-2">
-    Full Name
-  </label>
-  <input
-    type="text"
-    value={editingUser.name || ''}
-    onChange={(e) => setEditingUser({...editingUser, name: e.target.value})}
-    disabled={!isSuperAdmin}
-    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
-  />
-  {!isSuperAdmin && (
-    <p className="text-xs text-gray-400 mt-1">Only Super Admin can edit name</p>
-  )}
-</div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">Full Name</label>
+                <input
+                  type="text"
+                  value={editingUser.name || ''}
+                  onChange={(e) => setEditingUser({...editingUser, name: e.target.value})}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                />
+                {!isSuperAdmin && (
+                  <p className="text-xs text-gray-400 mt-1">Only Super Admin can edit name</p>
+                )}
+              </div>
 
               {/* Email */}
               <div>
-  <label className="block text-gray-700 text-sm font-medium mb-2">
-    Email Address
-  </label>
-  <input
-    type="email"
-    value={editingUser.email || ''}
-    onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
-    disabled={!isSuperAdmin}
-    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
-  />
-  {!isSuperAdmin && (
-    <p className="text-xs text-gray-400 mt-1">Only Super Admin can edit email</p>
-  )}
-</div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">Email Address</label>
+                <input
+                  type="email"
+                  value={editingUser.email || ''}
+                  onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                />
+                {!isSuperAdmin && (
+                  <p className="text-xs text-gray-400 mt-1">Only Super Admin can edit email</p>
+                )}
+              </div>
 
               {/* Phone */}
               <div>
-  <label className="block text-gray-700 text-sm font-medium mb-2">
-    Phone Number
-  </label>
-  <input
-    type="tel"
-    value={editingUser.phone || ''}
-    onChange={(e) => setEditingUser({...editingUser, phone: e.target.value})}
-    disabled={!isSuperAdmin}
-    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
-  />
-  {!isSuperAdmin && (
-    <p className="text-xs text-gray-400 mt-1">Only Super Admin can edit phone number</p>
-  )}
-</div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">Phone Number</label>
+                <input
+                  type="tel"
+                  value={editingUser.phone || ''}
+                  onChange={(e) => setEditingUser({...editingUser, phone: e.target.value})}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                />
+                {!isSuperAdmin && (
+                  <p className="text-xs text-gray-400 mt-1">Only Super Admin can edit phone number</p>
+                )}
+              </div>
 
-              {/* Role — only super_admin can change roles */}
+              {/* Role */}
               <div>
-  <label className="block text-gray-700 text-sm font-medium mb-2">Role</label>
-  <select
-    value={editingUser.role || 'customer'}
-    onChange={(e) => setEditingUser({
-      ...editingUser,
-      role: e.target.value,
-      department: e.target.value === 'admin' ? editingUser.department : null
-    })}
-    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
-    disabled={editingUser.role === 'super_admin' || !isSuperAdmin}
-  >
-    <option value="customer">Customer</option>
-    <option value="dealer">Dealer</option>
-    <option value="admin">Administrator</option>
-    {editingUser.role === 'super_admin' && (
-      <option value="super_admin">Super Admin</option>
-    )}
-  </select>
-  {!isSuperAdmin && (
-    <p className="text-xs text-gray-400 mt-1">Only Super Admin can change roles</p>
-  )}
-</div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">Role</label>
+                <select
+                  value={editingUser.role || 'customer'}
+                  onChange={(e) => setEditingUser({
+                    ...editingUser,
+                    role: e.target.value,
+                    department: e.target.value === 'admin' ? editingUser.department : null
+                  })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                  disabled={editingUser.role === 'super_admin' || !isSuperAdmin}
+                >
+                  <option value="customer">Customer</option>
+                  <option value="dealer">Dealer</option>
+                  <option value="admin">Administrator</option>
+                  {editingUser.role === 'super_admin' && (
+                    <option value="super_admin">Super Admin</option>
+                  )}
+                </select>
+                {!isSuperAdmin && (
+                  <p className="text-xs text-gray-400 mt-1">Only Super Admin can change roles</p>
+                )}
+              </div>
 
-
-              {/* Department — only shown & editable when role is admin, only by super_admin */}
-{editingUser.role === 'admin' && (
-  <div>
-    <label className="block text-gray-700 text-sm font-medium mb-2">
-      Department
-      {isSuperAdmin && (
-        <span className="ml-2 text-xs text-purple-600 font-normal">
-          (Visible on admin's profile page)
-        </span>
-      )}
-    </label>
-    <select
-      value={editingUser.department || ''}
-      onChange={(e) => setEditingUser({
-        ...editingUser,
-        department: e.target.value || null
-      })}
-      disabled={!isSuperAdmin}
-      className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-200"
-    >
-      <option value="">-- No Department --</option>
-      <option value="Operations">Operations</option>
-      <option value="Management">Management</option>
-      <option value="Customer Service">Customer Service</option>
-      <option value="Fleet Management">Fleet Management</option>
-      <option value="Finance">Finance</option>
-      <option value="IT Support">IT Support</option>
-      <option value="Marketing">Marketing</option>
-    </select>
-    <p className="text-xs text-gray-400 mt-1">
-      {isSuperAdmin
-        ? "This will appear on the admin's profile page"
-        : "Only Super Admin can edit department"}
-    </p>
-  </div>
-)}
+              {/* Department */}
+              {editingUser.role === 'admin' && (
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Department
+                    {isSuperAdmin && (
+                      <span className="ml-2 text-xs text-purple-600 font-normal">
+                        (Visible on admin's profile page)
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    value={editingUser.department || ''}
+                    onChange={(e) => setEditingUser({
+                      ...editingUser,
+                      department: e.target.value || null
+                    })}
+                    disabled={!isSuperAdmin}
+                    className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-200"
+                  >
+                    <option value="">-- No Department --</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Management">Management</option>
+                    <option value="Customer Service">Customer Service</option>
+                    <option value="Fleet Management">Fleet Management</option>
+                    <option value="Finance">Finance</option>
+                    <option value="IT Support">IT Support</option>
+                    <option value="Marketing">Marketing</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {isSuperAdmin
+                      ? "This will appear on the admin's profile page"
+                      : "Only Super Admin can edit department"}
+                  </p>
+                </div>
+              )}
 
               {/* Verification Status */}
-              {/* Verification Status — admins & super admins can both toggle */}
-<div>
-  <label className="block text-gray-700 text-sm font-medium mb-2">
-    Verification Status
-  </label>
-  <div className="flex items-center gap-4">
-    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-      editingUser.isVerified ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-    }`}>
-      {editingUser.isVerified ? 'Verified' : 'Not Verified'}
-    </span>
-    <button
-      type="button"
-      onClick={() => setEditingUser({ ...editingUser, isVerified: !editingUser.isVerified })}
-      className={`px-3 py-1 text-xs rounded ${
-        editingUser.isVerified
-          ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-      }`}
-    >
-      {editingUser.isVerified ? 'Mark as Not Verified' : 'Mark as Verified'}
-    </button>
-  </div>
-</div>
-                {/* Suspension Status */}
-{editingUser.role !== 'super_admin' && (isSuperAdmin || editingUser.role !== 'admin') && (
-  <div>
-    <label className="block text-gray-700 text-sm font-medium mb-2">
-      Account Status
-    </label>
-    <div className="flex items-center gap-4">
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-        editingUser.isSuspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-      }`}>
-        {editingUser.isSuspended ? 'Suspended' : 'Active'}
-      </span>
-      <button
-        type="button"
-        onClick={() => setEditingUser({ ...editingUser, isSuspended: !editingUser.isSuspended })}
-        className={`px-3 py-1 text-xs rounded ${
-          editingUser.isSuspended
-            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            : 'bg-red-100 text-red-700 hover:bg-red-200'
-        }`}
-      >
-        {editingUser.isSuspended ? 'Reactivate Account' : 'Suspend Account'}
-      </button>
-    </div>
-    {editingUser.isSuspended && (
-      <p className="text-xs text-red-500 mt-1">
-        This {editingUser.role === 'dealer' ? 'dealer' : 'user'} will be blocked from signing in.
-      </p>
-    )}
-  </div>
-)}
+              <div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">
+                  Verification Status
+                </label>
+                <div className="flex items-center gap-4">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    editingUser.isVerified ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {editingUser.isVerified ? 'Verified' : 'Not Verified'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser({ ...editingUser, isVerified: !editingUser.isVerified })}
+                    className={`px-3 py-1 text-xs rounded ${
+                      editingUser.isVerified
+                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    {editingUser.isVerified ? 'Mark as Not Verified' : 'Mark as Verified'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Suspension Status */}
+              {editingUser.role !== 'super_admin' && (isSuperAdmin || editingUser.role !== 'admin') && (
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Account Status
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      editingUser.isSuspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {editingUser.isSuspended ? 'Suspended' : 'Active'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingUser({ ...editingUser, isSuspended: !editingUser.isSuspended })}
+                      className={`px-3 py-1 text-xs rounded ${
+                        editingUser.isSuspended
+                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}
+                    >
+                      {editingUser.isSuspended ? 'Reactivate Account' : 'Suspend Account'}
+                    </button>
+                  </div>
+                  {editingUser.isSuspended && (
+                    <p className="text-xs text-red-500 mt-1">
+                      This {editingUser.role === 'dealer' ? 'dealer' : 'user'} will be blocked from signing in.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
@@ -637,7 +636,7 @@ const UsersManagement = () => {
       {/* Create New Admin Modal - Only for Super Admin */}
       {showCreateAdminModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-md mx-4 w-full">
+          <div className="bg-white rounded-xl p-8 max-w-md mx-4 w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">Create New Admin</h3>
@@ -650,7 +649,7 @@ const UsersManagement = () => {
                 ×
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Name */}
               <div>
@@ -695,13 +694,13 @@ const UsersManagement = () => {
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+                <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
               </div>
 
               {/* Phone */}
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-2">
-                  Phone Number
+                  Phone Number *
                 </label>
                 <input
                   type="tel"
@@ -709,7 +708,30 @@ const UsersManagement = () => {
                   onChange={(e) => setNewAdmin({...newAdmin, phone: e.target.value})}
                   placeholder="+1234567890"
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white"
+                  required
                 />
+              </div>
+
+              {/* Department */}
+              <div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">
+                  Department *
+                </label>
+                <select
+                  value={newAdmin.department}
+                  onChange={(e) => setNewAdmin({...newAdmin, department: e.target.value})}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white"
+                  required
+                >
+                  <option value="">Select Department</option>
+                  <option value="Operations">Operations</option>
+                  <option value="Management">Management</option>
+                  <option value="Customer Service">Customer Service</option>
+                  <option value="Fleet Management">Fleet Management</option>
+                  <option value="Finance">Finance</option>
+                  <option value="IT Support">IT Support</option>
+                  <option value="Marketing">Marketing</option>
+                </select>
               </div>
 
               {/* Role Display */}

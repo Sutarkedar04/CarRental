@@ -1,5 +1,3 @@
-// src/pages/auth/SignInPage.jsx - FIXED VERSION
-
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -36,20 +34,25 @@ const SignInPage = () => {
   const redirected = useRef(false);
 
   useEffect(() => {
-    if (!authLoading && user && !redirected.current) {
-      redirected.current = true;
-      
-      // Check user role for admin redirect
-      if (user.role === 'admin' || user.role === 'super_admin') {
-        navigate('/admin/dashboard', { replace: true });
-      } else if (user.role === 'dealer') {
-        navigate('/dealer/dashboard', { replace: true });
-      } else {
-        // Navigate to the original requested page
-        navigate(from, { replace: true });
-      }
-    }
-  }, [user, authLoading, navigate, from]);
+  if (authLoading || !user || redirected.current) return;
+
+  redirected.current = true;
+
+  if (user.role === 'admin' || user.role === 'super_admin') {
+    navigate('/admin/dashboard', { replace: true });
+  } else if (user.role === 'dealer') {
+    navigate('/dealer/dashboard', { replace: true });
+  } else {
+    navigate(from, { replace: true });
+  }
+}, [user, authLoading, navigate, from]);
+
+// Reset the ref when the component unmounts so a future mount can redirect again.
+useEffect(() => {
+  return () => {
+    redirected.current = false;
+  };
+}, []);
 
   // While AuthContext rehydrates, show spinner
   if (authLoading) {
@@ -240,12 +243,6 @@ const SignInPage = () => {
               Don't have an account?{' '}
               <Link to="/signup" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
                 Create customer account
-              </Link>
-            </p>
-            <p className="text-gray-400 mt-2">
-              Need admin access?{' '}
-              <Link to="/admin/signup" className="text-purple-400 hover:text-purple-300 font-semibold transition-colors">
-                Admin registration
               </Link>
             </p>
             <div className="mt-4">

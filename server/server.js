@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/mongodb.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import helmet from 'helmet';
+import morgan from 'morgan';
+
+
 
 // Load env vars
 dotenv.config();
@@ -11,10 +15,19 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+app.use(helmet());
+
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
 // In server.js, update CORS:
 const allowedOrigins = [
   "http://localhost:5173",
@@ -36,8 +49,9 @@ app.use(
         return callback(null, true);
       }
 
-      console.log("Blocked Origin:", origin);
-      console.log("Allowed Origins:", allowedOrigins);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("Blocked Origin:", origin);
+      }
 
       callback(new Error("Not allowed by CORS"));
     },
@@ -64,19 +78,31 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       cars: '/api/cars'
-      
+
     }
   });
 });
 
 // Error Handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Error:', err.message);
+  }
+
+  if (err.name === 'CastError') {
+    return res.status(400).json({ success: false, error: 'Invalid ID format' });
+  }
+
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+
   res.status(err.status || 500).json({
     success: false,
-    error: err.message || 'Server Error'
+    error: process.env.NODE_ENV === 'production' ? 'Server Error' : err.message,
   });
 });
+
 
 
 

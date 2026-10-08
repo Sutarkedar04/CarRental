@@ -7,7 +7,7 @@ import { FaCar, FaUsers, FaCalendarAlt, FaDollarSign, FaChartLine, FaArrowUp, Fa
 import api from '../../services/api';
 
 const AdminDashboard = () => {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalBookings: 0,
@@ -35,47 +35,80 @@ const AdminDashboard = () => {
   }, [user, navigate]);
 
   const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      const [bookingsRes, carsRes, usersRes] = await Promise.allSettled([
-        api.get('/bookings'),
-        api.get('/cars'),
-        api.get('/users')
-      ]);
-      
-      const bookings = bookingsRes.status === 'fulfilled' ? 
-        (bookingsRes.value.data?.data || bookingsRes.value.data || []) : [];
-      const cars = carsRes.status === 'fulfilled' ? 
-        (carsRes.value.data?.data || carsRes.value.data || []) : [];
-      const users = usersRes.status === 'fulfilled' ? 
-        (usersRes.value.data?.data || usersRes.value.data || []) : [];
-      
-      const bookingsData = Array.isArray(bookings) ? bookings : [];
-      const carsData = Array.isArray(cars) ? cars : [];
-      const usersData = Array.isArray(users) ? users : [];
-      
-      const totalBookings = bookingsData.length;
-      const activeBookings = bookingsData.filter(b => b.status === 'active').length;
-      const totalUsers = usersData.length;
-      const totalCars = carsData.length;
-      const revenue = bookingsData
-        .filter(b => b.status === 'completed')
-        .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
-      
-      setStats({ totalBookings, activeBookings, totalUsers, totalCars, revenue, revenueChange: 12.5 });
-      setRecentBookings(bookingsData.slice(0, 5));
-      setRecentUsers(usersData.slice(0, 5));
-      
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setStats({ totalBookings: 0, activeBookings: 0, totalUsers: 0, totalCars: 0, revenue: 0, revenueChange: 0 });
-      setRecentBookings([]);
-      setRecentUsers([]);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+
+    const [bookingsRes, carsRes, usersRes] = await Promise.allSettled([
+      api.get('/bookings'),
+      api.get('/cars'),
+      api.get('/users'),
+    ]);
+
+    // ── If any request returned 401/403, the session is dead → log out ──
+    const results = [bookingsRes, carsRes, usersRes];
+    const authFailure = results.find(
+      (r) =>
+        r.status === 'rejected' &&
+        (r.reason?.response?.status === 401 || r.reason?.response?.status === 403)
+    );
+
+    if (authFailure) {
+      await logout();
+      navigate('/signin');
+      return;
     }
-  };
+
+    const bookings =
+      bookingsRes.status === 'fulfilled'
+        ? bookingsRes.value.data?.data || bookingsRes.value.data || []
+        : [];
+    const cars =
+      carsRes.status === 'fulfilled'
+        ? carsRes.value.data?.data || carsRes.value.data || []
+        : [];
+    const users =
+      usersRes.status === 'fulfilled'
+        ? usersRes.value.data?.data || usersRes.value.data || []
+        : [];
+
+    const bookingsData = Array.isArray(bookings) ? bookings : [];
+    const carsData = Array.isArray(cars) ? cars : [];
+    const usersData = Array.isArray(users) ? users : [];
+
+    const totalBookings = bookingsData.length;
+    const activeBookings = bookingsData.filter((b) => b.status === 'active').length;
+    const totalUsers = usersData.length;
+    const totalCars = carsData.length;
+    const revenue = bookingsData
+      .filter((b) => b.status === 'completed')
+      .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+
+    setStats({
+      totalBookings,
+      activeBookings,
+      totalUsers,
+      totalCars,
+      revenue,
+      revenueChange: 12.5,
+    });
+    setRecentBookings(bookingsData.slice(0, 5));
+    setRecentUsers(usersData.slice(0, 5));
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    setStats({
+      totalBookings: 0,
+      activeBookings: 0,
+      totalUsers: 0,
+      totalCars: 0,
+      revenue: 0,
+      revenueChange: 0,
+    });
+    setRecentBookings([]);
+    setRecentUsers([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

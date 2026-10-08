@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FaEye, FaEyeSlash, FaKey } from 'react-icons/fa';
 import authService from '../../services/authService';
 
 const ResetPasswordPage = () => {
   const { token } = useParams();
+    useEffect(() => {
+  if (!token) {
+    setError('Invalid or missing reset token. Please request a new password reset link.');
+  }
+}, [token]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,6 +22,10 @@ const ResetPasswordPage = () => {
     setMessage('');
     setError('');
 
+    if (!token) {
+      setError('Invalid or missing reset token. Please request a new password reset link.');
+      return;
+    }
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;

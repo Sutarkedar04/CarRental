@@ -27,7 +27,8 @@ const paymentSchema = new mongoose.Schema({
   },
   transactionId: {
     type: String,
-    unique: true
+    unique: true,
+    sparse: true
   },
   status: {
     type: String,

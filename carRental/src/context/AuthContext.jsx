@@ -33,38 +33,48 @@ export const AuthProvider = ({ children }) => {
   // ✅ On app load, re-check the session against the server.
   // Catches: suspended accounts, deleted accounts, expired/invalidated tokens,
   // and role changes made by an admin while the user was already logged in.
-  useEffect(() => {
-    const verifySession = async () => {
-      const cachedUser = getStoredUser();
-      if (!cachedUser) {
-        setLoading(false);
-        return;
-      }
+ useEffect(() => {
+  const verifySession = async () => {
+    const cachedUser = getStoredUser();
+    if (!cachedUser) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const data = await authService.getMe(); // hits GET /api/auth/me
-        if (data.success && data.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-        } else {
-          // server says no — clear stale session
-          localStorage.removeItem('user');
-          localStorage.removeItem('token');
-          setUser(null);
-        }
-      } catch (error) {
-        // 401/403 (invalid token OR suspended, depending on your middleware) → log out locally
-        console.warn('Session check failed:', error?.message);
+    try {
+      const data = await authService.getMe(); // GET /api/auth/me
+      if (data.success && data.user) {
+        setUser(data.user);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      } else {
+        // Server responded 200 but said "no user" — clear stale session
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         setUser(null);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (error) {
+      const status = error?.response?.status ?? error?.status;
 
-    verifySession();
-  }, []);
+      // Only log out on explicit auth failures.
+      // Suspended account (403) or invalid/expired token (401).
+      if (status === 401 || status === 403) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        setUser(null);
+      } else {
+        // Network error / timeout / CORS hiccup — keep the cached user.
+        // The token is still in localStorage and will be retried on the
+        // next API call. Don't kick the user out just because the backend
+        // was briefly unreachable.
+        console.warn('Session check failed (non-auth):', error?.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  verifySession();
+}, []);
 
   const login = async (credentials) => {
     try {

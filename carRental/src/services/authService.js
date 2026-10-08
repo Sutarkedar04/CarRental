@@ -1,50 +1,41 @@
 // src/services/authService.js
 import api from './api';
 
+const isProd = import.meta.env.PROD;
+
 const authService = {
-  // Register user
   register: async (userData) => {
     try {
-      console.log('Registering user:', userData);
+      if (!isProd) console.log('Registering user:', userData.email);
       const response = await api.post('/auth/register', userData);
-      console.log('Registration response:', response.data);
-      
-      // Store token if provided
+
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
-      
       return response.data;
     } catch (error) {
-      console.error('Registration error:', error);
-      throw error.response?.data || { 
-        success: false, 
-        message: error.message || 'Network error during registration' 
+      throw error.response?.data || {
+        success: false,
+        message: error.message || 'Network error during registration',
       };
     }
   },
 
-  // Login user
   login: async (credentials) => {
     try {
-      console.log('Logging in with:', credentials.email);
+      if (!isProd) console.log('Logging in with:', credentials.email);
       const response = await api.post('/auth/login', credentials);
-      console.log('Login response:', response.data);
-      
-      // Store token and user if provided
+
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        console.log('User stored with role:', response.data.user.role);
       }
-      
       return response.data;
     } catch (error) {
-      console.error('Login error:', error);
-      throw error.response?.data || { 
-        success: false, 
-        message: error.message || 'Network error during login' 
+      throw error.response?.data || {
+        success: false,
+        message: error.message || 'Network error during login',
       };
     }
   },
@@ -59,51 +50,38 @@ const authService = {
     return response.data;
   },
 
-  // Get current user profile
+  // ⭐ Used by AuthContext on every page load
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    return response.data;
+    // Note: we deliberately do NOT catch here, so AuthContext can
+    // inspect error.response.status (401 vs 403 vs network error).
+  },
+
+  // Kept for compatibility — same endpoint as getMe
   getProfile: async () => {
-    try {
-      const response = await api.get('/auth/me');
-      console.log('Profile response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Get profile error:', error);
-      throw error.response?.data || { 
-        success: false, 
-        message: error.message || 'Network error' 
-      };
-    }
+    const response = await api.get('/auth/me');
+    return response.data;
   },
 
-  // Check if user is admin
   checkAdmin: async () => {
-    try {
-      const response = await api.get('/auth/check-admin');
-      return response.data;
-    } catch (error) {
-      console.error('Check admin error:', error);
-      throw error.response?.data || { 
-        success: false, 
-        message: error.message || 'Network error' 
-      };
-    }
+    const response = await api.get('/auth/check-admin');
+    return response.data;
   },
 
-  // Logout user
   logout: async () => {
     try {
       const response = await api.post('/auth/logout');
-      // Clear local storage
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       return response.data;
     } catch (error) {
-      console.error('Logout error:', error);
-      // Clear storage even if API call fails
+      // Clear local storage regardless of server response
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      throw error.response?.data || { 
-        success: false, 
-        message: error.message || 'Network error' 
+      throw error.response?.data || {
+        success: false,
+        message: error.message || 'Network error',
       };
     }
   },

@@ -129,18 +129,20 @@ const ProfilePage = () => {
       const response = await api.put('/auth/profile', updateData);
       
       if (response.data.success) {
+         await fetchUserProfile();
+
         if (updateUser) {
-          updateUser({
-            ...user,
-            name: profileData.name,
-            phone: profileData.phone,
-            address: profileData.address,
-            department: profileData.department,
-            role: profileData.role,
-            dealerStatus: profileData.dealerStatus,
-            dealerProfile: profileData.dealerProfile
-          });
-        }
+    updateUser(response.data.user || {
+      ...user,
+      name: profileData.name,
+      phone: profileData.phone,
+      address: profileData.address,
+      department: profileData.department,
+      role: profileData.role,
+      dealerStatus: profileData.dealerStatus,
+      dealerProfile: profileData.dealerProfile,
+    });
+  }
         toast.success('Profile updated successfully!');
         setIsEditing(false);
         await fetchUserProfile();

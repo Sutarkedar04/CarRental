@@ -47,6 +47,14 @@ const userAuth = async (req, res, next) => {
     // Attach user info to request
     req.userId = decoded.id;
     req.user = user;
+    // Block suspended accounts from doing anything authenticated
+if (user.isSuspended) {
+  console.log('❌ Suspended user attempted access:', user.email);
+  return res.status(403).json({
+    success: false,
+    message: 'Your account has been suspended. Contact support.',
+  });
+}
     req.userRole = user.role;
     
     console.log("✅ Authentication successful, user:", user.email, "Role:", user.role);
@@ -161,21 +169,20 @@ export const dealerAuth = (req, res, next) => {
 // and do ownership checks inside the controller.
 export const dealerOrAdminAuth = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ success: false, message: "Not authorized." });
+    return res.status(401).json({ success: false, message: 'Not authorized.' });
   }
 
   const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
-  const isVerifiedDealer = req.user.role === 'dealer' && req.user.dealerStatus === 'verified';
+  const isVerifiedDealer =
+    req.user.role === 'dealer' && req.user.dealerStatus === 'verified';
 
-  if (!isAdmin && !isVerifiedDealer) {
-    return res.status(403).json({
-      success: false,
-      message: isAdmin === false && req.user.role === 'dealer'
-        ? `Your dealer account is ${req.user.dealerStatus || 'pending'}.`
-        : "Access denied. Verified dealer or admin privileges required."
-    });
-  }
+  if (isAdmin || isVerifiedDealer) return next();
 
-  next();
+  const message =
+    req.user.role === 'dealer'
+      ? `Your dealer account is ${req.user.dealerStatus || 'pending'}.`
+      : 'Access denied. Verified dealer or admin privileges required.';
+
+  return res.status(403).json({ success: false, message });
 };
 export default userAuth;

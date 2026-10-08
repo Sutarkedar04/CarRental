@@ -1,21 +1,17 @@
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import User from "../models/userModel.js";
+import { generateToken } from "../utils/helpers.js";
 
 // @desc   Register user
-// @route  POST /api/auth/register
-// @access Public
-// @desc   Register user with role
 // @route  POST /api/auth/register
 // @access Public
 export const register = async (req, res) => {
   console.log("=== REGISTRATION REQUEST ===");
   console.log("Request Body:", req.body);
-  
+
   try {
-    const { name, email, password, phone, address, role, dealerProfile } = req.body; // ✅ added dealerProfile
+    const { name, email, password, phone, address, role, dealerProfile } = req.body;
 
     console.log("Validating fields...");
 
@@ -30,6 +26,14 @@ export const register = async (req, res) => {
     const allowedPublicRoles = ['customer', 'dealer'];
     const finalRole = allowedPublicRoles.includes(role) ? role : 'customer';
 
+    if (role && !allowedPublicRoles.includes(role)) {
+  console.warn('⚠️  Register attempt with disallowed role:', {
+    requestedRole: role,
+    email,
+    ip: req.ip,
+  });
+}
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({
@@ -38,15 +42,11 @@ export const register = async (req, res) => {
       });
     }
 
-    console.log("Hashing password...");
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log("Password hashed");
-
     console.log("Creating new user...");
     const userData = {
       name,
       email,
-      password: hashedPassword,
+      password,                 // ✅ plaintext — hashed by userModel pre('save') hook
       phone,
       address: address || {},
       role: finalRole
@@ -58,17 +58,11 @@ export const register = async (req, res) => {
       userData.isVerified = false;
     }
 
-    // ✅ removed the two stray console.log(user...) lines that were here
-
     const user = await User.create(userData);
     console.log("User created successfully:", user._id);
     console.log("User role:", user.role);
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateToken(user._id, user.role);
 
     console.log("Setting cookie...");
     res.cookie("token", token, {
@@ -127,7 +121,7 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   console.log("=== LOGIN REQUEST ===");
   console.log("Request Body:", req.body);
-  
+
   try {
     const { email, password } = req.body;
 
@@ -142,7 +136,7 @@ export const login = async (req, res) => {
     // Find user
     console.log("Finding user with email:", email);
     const user = await User.findOne({ email });
-    
+
     if (!user) {
       console.log("User not found");
       return res.status(401).json({
@@ -151,22 +145,25 @@ export const login = async (req, res) => {
       });
     }
 
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    
+    // Check password — uses the model method (wraps bcrypt.compare)
+    const isPasswordValid = await user.comparePassword(password);
+
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password."
       });
     }
-
+    
+    // After password check succeeds
+if (user.isSuspended) {
+  return res.status(403).json({
+    success: false,
+    message: 'Your account has been suspended. Contact support.',
+  });
+}
     // Generate JWT token with role
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateToken(user._id, user.role);
 
     // Set cookie
     res.cookie("token", token, {
@@ -210,12 +207,11 @@ export const login = async (req, res) => {
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
-    
+
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
 
-    // ✅ add this
     if (user.isSuspended) {
       return res.status(403).json({ success: false, message: "Your account has been suspended." });
     }
@@ -233,10 +229,10 @@ export const getMe = async (req, res) => {
 export const checkAdmin = async (req, res) => {
   console.log("=== CHECK ADMIN REQUEST ===");
   console.log("User:", req.user?.email, "Role:", req.user?.role);
-  
+
   try {
     const isAdmin = req.user?.role === 'admin';
-    
+
     return res.json({
       success: true,
       isAdmin,
@@ -300,6 +296,8 @@ export const forgotPassword = async (req, res) => {
         .update(resetToken)
         .digest('hex');
       user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000);
+      // validateBeforeSave: false still triggers pre('save'),
+      // but isModified('password') is false here, so no re-hash occurs.
       await user.save({ validateBeforeSave: false });
 
       const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -373,7 +371,7 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    user.password = await bcrypt.hash(password, 10);
+    user.password = password;   // ✅ plaintext — hashed by userModel pre('save') hook
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
@@ -391,8 +389,6 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// backend/controllers/authController.js - ADD THESE NEW FUNCTIONS
-
 // @desc   Create new admin (Super Admin only)
 // @route  POST /api/auth/create-admin
 // @access Private/Super Admin
@@ -400,7 +396,7 @@ export const createAdmin = async (req, res) => {
   console.log("=== CREATE ADMIN REQUEST (Super Admin Only) ===");
   console.log("Request Body:", req.body);
   console.log("Creator:", req.user.email, "Role:", req.user.role);
-  
+
   try {
     // ✅ Verify super admin role
     if (req.user.role !== 'super_admin') {
@@ -410,7 +406,7 @@ export const createAdmin = async (req, res) => {
         message: "Only super admins can create new admin accounts."
       });
     }
-    
+
     const { name, email, password, phone, department, role = 'admin' } = req.body;
 
     // Validate required fields
@@ -430,21 +426,18 @@ export const createAdmin = async (req, res) => {
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create admin user
+    // Create admin user — password is hashed by userModel pre('save') hook
     const newAdmin = await User.create({
       name,
       email,
-      password: hashedPassword,
+      password,                 // ✅ plaintext
       phone,
       department,
-      role: 'admin',  // Force role to admin (can't create super_admin)
+      role: 'admin',            // Force role to admin (can't create super_admin)
       isVerified: true,
-      createdBy: req.userId  // Track who created this admin
+      createdBy: req.userId     // Track who created this admin
     });
-    
+
     console.log("✅ Admin created successfully by super admin:", newAdmin._id);
 
     // Send response (without sensitive data)
@@ -467,7 +460,7 @@ export const createAdmin = async (req, res) => {
   } catch (error) {
     console.error("=== CREATE ADMIN ERROR ===");
     console.error("Error:", error.message);
-    
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({
@@ -475,14 +468,14 @@ export const createAdmin = async (req, res) => {
         message: `Validation error: ${messages.join(', ')}`
       });
     }
-    
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
         message: "Email already exists"
       });
     }
-    
+
     return res.status(500).json({
       success: false,
       message: `Server error: ${error.message || "Unknown error"}`
@@ -496,7 +489,7 @@ export const createAdmin = async (req, res) => {
 export const getAllAdmins = async (req, res) => {
   console.log("=== GET ALL ADMINS REQUEST ===");
   console.log("Requester:", req.user.email, "Role:", req.user.role);
-  
+
   try {
     if (req.user.role !== 'super_admin') {
       return res.status(403).json({
@@ -504,19 +497,19 @@ export const getAllAdmins = async (req, res) => {
         message: "Only super admins can view admin list."
       });
     }
-    
-    const admins = await User.find({ 
-      role: { $in: ['admin', 'super_admin'] } 
+
+    const admins = await User.find({
+      role: { $in: ['admin', 'super_admin'] }
     }).select('-password').populate('createdBy', 'name email');
-    
+
     console.log(`✅ Found ${admins.length} admins`);
-    
+
     return res.json({
       success: true,
       count: admins.length,
       data: admins
     });
-    
+
   } catch (error) {
     console.error("❌ Get admins error:", error.message);
     return res.status(500).json({
@@ -533,7 +526,7 @@ export const removeAdmin = async (req, res) => {
   console.log("=== REMOVE ADMIN REQUEST ===");
   console.log("Admin ID to remove:", req.params.id);
   console.log("Requester:", req.user.email, "Role:", req.user.role);
-  
+
   try {
     if (req.user.role !== 'super_admin') {
       return res.status(403).json({
@@ -541,39 +534,39 @@ export const removeAdmin = async (req, res) => {
         message: "Only super admins can remove admin accounts."
       });
     }
-    
+
     const adminToRemove = await User.findById(req.params.id);
-    
+
     if (!adminToRemove) {
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
-    
+
     if (adminToRemove.role === 'super_admin') {
       return res.status(400).json({
         success: false,
         message: "Cannot remove super admin account."
       });
     }
-    
+
     if (adminToRemove.role !== 'admin') {
       return res.status(400).json({
         success: false,
         message: "User is not an admin."
       });
     }
-    
+
     await User.findByIdAndDelete(req.params.id);
-    
+
     console.log("✅ Admin removed successfully");
-    
+
     return res.json({
       success: true,
       message: "Admin account removed successfully"
     });
-    
+
   } catch (error) {
     console.error("❌ Remove admin error:", error.message);
     return res.status(500).json({
@@ -583,14 +576,6 @@ export const removeAdmin = async (req, res) => {
   }
 };
 
-// Add this function to your existing authController.js file
-
-// @desc   Update user profile
-// @route  PUT /api/auth/profile
-// @access Private
-// In your updateProfile / PUT /auth/profile handler, add department:
-// backend/controllers/authController.js - Update the updateProfile function
-
 // @desc   Update user profile
 // @route  PUT /api/auth/profile
 // @access Private
@@ -598,19 +583,19 @@ export const updateProfile = async (req, res) => {
   try {
     const { name, phone, address, driverLicense, dealerProfile } = req.body;
     const userId = req.userId;
-    
+
     console.log("=== UPDATE PROFILE REQUEST ===");
     console.log("User ID:", userId);
     console.log("Update data:", req.body);
-    
+
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
       });
     }
-    
+
     // Basic fields anyone can update
     if (name !== undefined) user.name = name;
     if (phone !== undefined) user.phone = phone;
@@ -619,25 +604,25 @@ export const updateProfile = async (req, res) => {
     if (dealerProfile !== undefined && user.role === 'dealer') {
       user.dealerProfile = dealerProfile;
     }
-    
+
     await user.save();
-    
+
     const userResponse = user.toObject();
     delete userResponse.password;
-    
+
     console.log("✅ Profile updated successfully");
-    
+
     return res.json({
       success: true,
       message: "Profile updated successfully",
       user: userResponse
     });
-    
+
   } catch (error) {
     console.error("❌ Update profile error:", error.message);
-    res.status(500).json({ 
-      success: false, 
-      message: "Server error updating profile: " + error.message 
+    res.status(500).json({
+      success: false,
+      message: "Server error updating profile: " + error.message
     });
   }
 };
@@ -692,4 +677,3 @@ export const verifyDealer = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error updating dealer status" });
   }
 };
-

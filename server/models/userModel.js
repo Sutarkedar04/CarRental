@@ -78,9 +78,16 @@ isSuspended: {
   timestamps: true
 });
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
 
+// Hash password automatically on save if it was modified
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  this.password = await bcrypt.hash(this.password, 10);
+});
+
+
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;

@@ -1,6 +1,7 @@
 import Booking from '../models/bookingModel.js';
 import Car from '../models/carModel.js';
 import mongoose from 'mongoose';
+import { calculateBookingTotal } from '../utils/helpers.js';
 
 // @desc    Create a new booking
 // @route   POST /api/bookings
@@ -10,7 +11,7 @@ export const createBooking = async (req, res) => {
     console.log("=== CREATE BOOKING REQUEST ===");
     console.log("User:", req.user.email);
     console.log("Request body:", req.body);
-    
+
     const { carId, startDate, endDate, driverDetails, specialRequests } = req.body;
 
     // Validate required fields
@@ -21,48 +22,49 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // Parse dates
+    // Parse & normalize to local midnight
     const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
     const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of day
-    
-    // Validate dates
+    today.setHours(0, 0, 0, 0);
+
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide valid booking dates.'
+        message: 'Please provide valid booking dates.',
       });
     }
 
     if (start < today) {
       return res.status(400).json({
         success: false,
-        message: "Start date cannot be in the past."
+        message: 'Start date cannot be in the past.',
       });
     }
-    
-    if (end <= start) {
+
+    if (end < start) {
       return res.status(400).json({
         success: false,
-        message: "End date must be after start date."
+        message: 'End date must be on or after the start date.',
       });
     }
-    
-    // Calculate total days
-    const timeDiff = end.getTime() - start.getTime();
-    const totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
-    
+
+    // Inclusive day count — matches frontend
+    const totalDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+
     if (totalDays < 1) {
       return res.status(400).json({
         success: false,
-        message: "Booking must be for at least 1 day."
+        message: 'Booking must be for at least 1 day.',
       });
     }
 
     // Find the car
     const car = await Car.findById(carId);
-    
+
     if (!car) {
       return res.status(404).json({
         success: false,
@@ -70,10 +72,10 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // Calculate pricing
+    // Calculate pricing via shared helper
     const dailyRate = car.dailyRate;
     const securityDeposit = car.securityDeposit;
-    const totalAmount = (dailyRate * totalDays) + securityDeposit;
+    const { total: totalAmount } = calculateBookingTotal(dailyRate, totalDays, securityDeposit);
 
     const booking = new Booking({
       _id: new mongoose.Types.ObjectId(),
@@ -135,7 +137,7 @@ export const createBooking = async (req, res) => {
     }
 
     console.log("✅ Booking created successfully:", booking._id);
-    
+
     res.status(201).json({
       success: true,
       message: "Booking created successfully. Please complete payment to confirm.",
@@ -145,7 +147,7 @@ export const createBooking = async (req, res) => {
   } catch (error) {
     console.error("❌ Create booking error:", error.message);
     console.error("Error stack:", error.stack);
-    
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({
@@ -153,14 +155,14 @@ export const createBooking = async (req, res) => {
         message: `Validation error: ${messages.join(', ')}`
       });
     }
-    
+
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
         message: "Duplicate booking detected."
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Server error while creating booking."
@@ -175,13 +177,13 @@ export const getMyBookings = async (req, res) => {
   try {
     console.log("=== GET MY BOOKINGS REQUEST ===");
     console.log("User:", req.user.email);
-    
+
     const bookings = await Booking.find({ user: req.userId })
       .sort({ createdAt: -1 })
       .populate('car', 'make model year images dailyRate location');
-    
+
     console.log(`✅ Found ${bookings.length} bookings for user`);
-    
+
     res.json({
       success: true,
       count: bookings.length,
@@ -308,7 +310,6 @@ export const getBookingById = async (req, res) => {
       });
     }
 
-    // ✅ FIX: check if user is still populated (not null/deleted)
     const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin';
 
     // If user ref is null (deleted user), only admin can view
@@ -323,7 +324,6 @@ export const getBookingById = async (req, res) => {
       return res.json({ success: true, data: booking });
     }
 
-    // ✅ FIX: safe access now that we know booking.user is not null
     const isOwner = booking.user._id.toString() === req.userId.toString();
 
     if (!isOwner && !isAdmin) {
@@ -365,28 +365,28 @@ export const cancelBooking = async (req, res) => {
     console.log("=== CANCEL BOOKING REQUEST ===");
     console.log("Booking ID:", req.params.id);
     console.log("User:", req.user.email);
-    
+
     const { cancellationReason } = req.body;
-    
+
     const booking = await Booking.findById(req.params.id)
       .populate('car');
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: "Booking not found."
       });
     }
-    
+
     // Check if user owns the booking or is admin
     const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin';
-if (booking.user.toString() !== req.userId.toString() && !isAdmin) {
+    if (booking.user.toString() !== req.userId.toString() && !isAdmin) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to cancel this booking."
       });
     }
-    
+
     // Check if booking can be cancelled
     if (booking.status === 'cancelled') {
       return res.status(400).json({
@@ -394,41 +394,41 @@ if (booking.user.toString() !== req.userId.toString() && !isAdmin) {
         message: "Booking is already cancelled."
       });
     }
-    
+
     if (booking.status === 'completed') {
       return res.status(400).json({
         success: false,
         message: "Completed bookings cannot be cancelled."
       });
     }
-    
+
     const now = new Date();
     const startDate = new Date(booking.startDate);
-    
+
     // Check if booking starts within 24 hours (no cancellation)
     const hoursUntilStart = (startDate - now) / (1000 * 60 * 60);
-    
+
     if (hoursUntilStart < 24 && req.user.role !== 'admin') {
       return res.status(400).json({
         success: false,
         message: "Bookings cannot be cancelled within 24 hours of start time."
       });
     }
-    
+
     // Update booking status
     booking.status = 'cancelled';
     booking.cancellationReason = cancellationReason || 'User cancelled';
     booking.cancelledAt = now;
-    
+
     // Remove booking dates from car
     if (booking.car) {
       await booking.car.removeBookingDates(booking._id);
     }
-    
+
     await booking.save();
-    
+
     console.log("✅ Booking cancelled successfully");
-    
+
     res.json({
       success: true,
       message: "Booking cancelled successfully.",
@@ -451,14 +451,14 @@ export const getAllBookings = async (req, res) => {
   try {
     console.log("=== GET ALL BOOKINGS REQUEST (Admin) ===");
     console.log("Admin:", req.user.email);
-    
+
     const bookings = await Booking.find()
       .sort({ createdAt: -1 })
       .populate('car', 'make model year')
       .populate('user', 'name email phone');
-    
+
     console.log(`✅ Found ${bookings.length} total bookings`);
-    
+
     res.json({
       success: true,
       count: bookings.length,
@@ -484,11 +484,11 @@ export const updateBookingStatus = async (req, res) => {
     console.log("Admin:", req.user.email);
     console.log("Admin ID:", req.userId);
     console.log("Request body:", req.body);
-    
+
     const { status, adminNotes } = req.body;
-    
+
     const validStatuses = ['pending', 'confirmed', 'active', 'completed', 'cancelled'];
-    
+
     if (!status || !validStatuses.includes(status)) {
       console.log("❌ Invalid status:", status);
       return res.status(400).json({
@@ -496,10 +496,10 @@ export const updateBookingStatus = async (req, res) => {
         message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
       });
     }
-    
+
     console.log("Finding booking...");
     const booking = await Booking.findById(req.params.id);
-    
+
     if (!booking) {
       console.log("❌ Booking not found");
       return res.status(404).json({
@@ -507,16 +507,16 @@ export const updateBookingStatus = async (req, res) => {
         message: "Booking not found."
       });
     }
-    
+
     console.log("✅ Booking found. Current status:", booking.status);
     console.log("Car ID:", booking.car);
-    
+
     // Update status
     booking.status = status;
     if (adminNotes) booking.adminNotes = adminNotes;
-    
+
     console.log("Attempting to save booking with new status:", status);
-    
+
     // If cancelling, remove dates from car
     if (status === 'cancelled') {
       console.log("Cancellation requested - removing dates from car");
@@ -533,19 +533,19 @@ export const updateBookingStatus = async (req, res) => {
         console.error("❌ Error removing booking dates:", carError.message);
       }
     }
-    
+
     // Save the booking
     await booking.save();
     console.log("✅ Booking saved successfully");
     console.log("New booking status:", booking.status);
-    
+
     // Populate and return updated booking
     const updatedBooking = await Booking.findById(req.params.id)
       .populate('car', 'make model year')
       .populate('user', 'name email phone');
-    
+
     console.log("✅ Booking status updated to:", status);
-    
+
     res.json({
       success: true,
       message: `Booking status updated to ${status}.`,
@@ -556,7 +556,7 @@ export const updateBookingStatus = async (req, res) => {
     console.error("❌ Update booking status error:", error.message);
     console.error("Error name:", error.name);
     console.error("Error stack:", error.stack);
-    
+
     // Check for specific error types
     if (error.name === 'ValidationError') {
       console.error("Validation errors:", error.errors);
@@ -565,14 +565,14 @@ export const updateBookingStatus = async (req, res) => {
         message: `Validation error: ${Object.values(error.errors).map(err => err.message).join(', ')}`
       });
     }
-    
+
     if (error.name === 'CastError') {
       return res.status(400).json({
         success: false,
         message: "Invalid booking ID."
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: `Server error: ${error.message}`

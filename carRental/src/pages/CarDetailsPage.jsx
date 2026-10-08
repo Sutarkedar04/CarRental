@@ -37,30 +37,30 @@ const formatDateStr = (date) => {
 // Parse a 'YYYY-MM-DD' string -> local Date object (avoids UTC shift)
 const parseDateStr = (str) => (str ? new Date(str + 'T00:00:00') : null);
 
-// Expand a booked range into individual Date objects (inclusive)
-const expandDateRange = (start, end) => {
-  const toLocalDate = (value) => {
-    if (typeof value === 'string') {
-      return parseDateStr(value.slice(0, 10));
-    }
+const toLocalDate = (value) => {
+  if (!value) return null;
 
-    const date = new Date(value);
-    return new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate()
-    );
-  };
+  // 'YYYY-MM-DD' → treat as local date, not UTC
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return parseDateStr(value);
+  }
+
+  const d = new Date(value);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+// Expand a booked range into individual Date objects (inclusive).
+const expandDateRange = (start, end) => {
+  const startDate = toLocalDate(start);
+  const endDate = toLocalDate(end);
+  if (!startDate || !endDate) return [];
 
   const dates = [];
-  const current = toLocalDate(start);
-  const last = toLocalDate(end);
-
-  while (current <= last) {
+  const current = new Date(startDate);
+  while (current <= endDate) {
     dates.push(new Date(current));
     current.setDate(current.getDate() + 1);
   }
-
   return dates;
 };
 
@@ -157,9 +157,7 @@ const CarDetailsPage = () => {
       const response = await api.get(`/cars/${id}/unavailable-dates`);
       const ranges = response.data?.data || [];
 
-      const allDates = ranges.flatMap(r =>
-        expandDateRange(new Date(r.startDate), new Date(r.endDate))
-      );
+      const allDates = ranges.flatMap((r) => expandDateRange(r.startDate, r.endDate));
 
       setUnavailableDates(allDates);
     } catch (err) {

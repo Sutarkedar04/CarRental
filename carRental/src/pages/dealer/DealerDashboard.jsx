@@ -18,6 +18,13 @@ const EMPTY_FORM = {
   isAvailable: true
 };
 
+// Deep-ish clone so we never mutate the original constant
+const makeEmptyForm = () => ({
+  ...EMPTY_FORM,
+  location: { ...EMPTY_FORM.location },
+  features: [...EMPTY_FORM.features],
+});
+
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${localStorage.getItem('token') || ''}`
@@ -29,7 +36,7 @@ const DealerDashboard = () => {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingCar, setEditingCar] = useState(null); // null = adding new
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formData, setFormData] = useState(makeEmptyForm);
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -64,7 +71,7 @@ const DealerDashboard = () => {
 
   const openAddForm = () => {
     setEditingCar(null);
-    setFormData(EMPTY_FORM);
+    setFormData(makeEmptyForm());
     setFormErrors({});
     setShowForm(true);
   };
@@ -97,7 +104,7 @@ const DealerDashboard = () => {
   const closeForm = () => {
     setShowForm(false);
     setEditingCar(null);
-    setFormData(EMPTY_FORM);
+    setFormData(makeEmptyForm());
     setFormErrors({});
   };
 

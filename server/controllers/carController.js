@@ -1,4 +1,5 @@
 import Car from '../models/carModel.js';
+import { calculateBookingTotal } from '../utils/helpers.js';
 
 // @desc    Create a new car (Admin only)
 // @route   POST /api/cars
@@ -8,7 +9,7 @@ export const createCar = async (req, res) => {
     console.log("=== CREATE CAR REQUEST ===");
     console.log("Request body:", req.body);
     console.log("User ID from auth:", req.userId);
-    
+
     const {
       make, model, year, type, transmission, fuelType,
       seatingCapacity, mileage, dailyRate, securityDeposit,
@@ -23,18 +24,18 @@ export const createCar = async (req, res) => {
       });
     }
     // ✅ ADD: require location.city too, since your whole marketplace pivots on city search
-if (!location?.city?.trim()) {
-  return res.status(400).json({
-    success: false,
-    message: "Please provide the car's city so customers can find it."
-  });
-}
+    if (!location?.city?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide the car's city so customers can find it."
+      });
+    }
     const carLocation = {
-  pickupAddress: location?.pickupAddress?.trim() || '',
-  city: location.city.trim(),
-  state: location?.state?.trim() || '',
-  coordinates: location?.coordinates
-};
+      pickupAddress: location?.pickupAddress?.trim() || '',
+      city: location.city.trim(),
+      state: location?.state?.trim() || '',
+      coordinates: location?.coordinates
+    };
 
     const car = await Car.create({
       make,
@@ -57,7 +58,7 @@ if (!location?.city?.trim()) {
     });
 
     console.log("✅ Car created successfully:", car._id);
-    
+
     res.status(201).json({
       success: true,
       message: "Car added successfully",
@@ -67,7 +68,7 @@ if (!location?.city?.trim()) {
   } catch (error) {
     console.error("❌ Create car error:", error.message);
     console.error("Full error:", error);
-    
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({
@@ -75,7 +76,7 @@ if (!location?.city?.trim()) {
         message: `Validation error: ${messages.join(', ')}`
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Server error while creating car"
@@ -91,9 +92,9 @@ export const getAllCars = async (req, res) => {
   try {
     console.log("=== GET ALL CARS WITH FILTERS ===");
     console.log("Query params:", req.query);
-    
+
     // Destructure query parameters
-    const { 
+    const {
       search,           // General search (make/model)
       type,             // Car type
       transmission,     // Transmission type
@@ -110,16 +111,16 @@ export const getAllCars = async (req, res) => {
       limit = 10,       // Items per page
       available = 'true' // Show available cars only
     } = req.query;
-    
+
     // Build filter object
     const filter = {};
-    
+
     // Only show available and active cars by default
     if (available === 'true') {
       filter.isAvailable = true;
       filter.isActive = true;
     }
-    
+
     const searchConditions = [];
 
     // Text search (make or model)
@@ -129,30 +130,30 @@ export const getAllCars = async (req, res) => {
         { model: { $regex: search, $options: 'i' } }
       ] });
     }
-    
+
     // Filter by car type
     if (type) filter.type = type;
-    
+
     // Filter by transmission
     if (transmission) filter.transmission = transmission;
-    
+
     // Filter by fuel type
     if (fuelType) filter.fuelType = fuelType;
-    
+
     // Filter by seating capacity
     if (minSeats || maxSeats) {
       filter.seatingCapacity = {};
       if (minSeats) filter.seatingCapacity.$gte = Number(minSeats);
       if (maxSeats) filter.seatingCapacity.$lte = Number(maxSeats);
     }
-    
+
     // Filter by price range
     if (minPrice || maxPrice) {
       filter.dailyRate = {};
       if (minPrice) filter.dailyRate.$gte = Number(minPrice);
       if (maxPrice) filter.dailyRate.$lte = Number(maxPrice);
     }
-    
+
     // Filter by location
     if (location) {
       searchConditions.push({ $or: [
@@ -164,47 +165,41 @@ export const getAllCars = async (req, res) => {
     if (searchConditions.length > 0) {
       filter.$and = searchConditions;
     }
-    
+
     console.log("Basic filters:", JSON.stringify(filter, null, 2));
-    
-    // === SIMPLIFIED DATE FILTERING ===
-    // First, get all cars matching basic filters
-    let cars = await Car.find(filter)
-      .select('-bookedDates -addedBy -isActive');
-    
+
+    // === DATE FILTERING ===
+    // Fetch all matching cars — keep bookedDates for filtering
+    let cars = await Car.find(filter).select('-addedBy -isActive');
+
     console.log(`Found ${cars.length} cars before date filtering`);
-    
-    // If dates are provided, filter by availability in JavaScript
+
+    // Apply date filter in JS
     if (startDate && endDate) {
       const requestedStart = new Date(startDate);
       const requestedEnd = new Date(endDate);
-      
+
       console.log("Filtering by dates:", requestedStart, "to", requestedEnd);
-      
-      // Get car IDs
-      const carIds = cars.map(car => car._id);
-      
-      // Get these cars with their bookedDates
-      const carsWithBookings = await Car.find({ _id: { $in: carIds } })
-        .select('bookedDates');
-      
-      // Create availability map
-      const availabilityMap = {};
-      carsWithBookings.forEach(car => {
-        const isAvailable = !car.bookedDates.some(booking => {
+
+      cars = cars.filter((car) =>
+        !car.bookedDates.some((booking) => {
           const bookingStart = new Date(booking.startDate);
           const bookingEnd = new Date(booking.endDate);
           return requestedStart <= bookingEnd && requestedEnd >= bookingStart;
-        });
-        availabilityMap[car._id.toString()] = isAvailable;
-      });
-      
-      // Filter cars
-      cars = cars.filter(car => availabilityMap[car._id.toString()]);
-      
+        })
+      );
+
       console.log(`After date filtering: ${cars.length} cars available`);
     }
-    
+
+    // Strip bookedDates before sending to client
+    const sanitized = cars.map((car) => {
+      const obj = car.toObject();
+      delete obj.bookedDates;
+      return obj;
+    });
+    cars = sanitized;
+
     // Apply sorting
     const sortBy = {};
     if (sort) {
@@ -212,13 +207,13 @@ export const getAllCars = async (req, res) => {
       const sortOrder = sort.startsWith('-') ? -1 : 1;
       sortBy[sortField] = sortOrder;
     }
-    
+
     // Apply pagination
     const currentPage = parseInt(page);
     const itemsPerPage = parseInt(limit);
     const skip = (currentPage - 1) * itemsPerPage;
     const total = cars.length;
-    
+
     // Sort and paginate
     cars = cars
       .sort((a, b) => {
@@ -229,9 +224,9 @@ export const getAllCars = async (req, res) => {
         return 0;
       })
       .slice(skip, skip + itemsPerPage);
-    
+
     console.log(`✅ Final: ${cars.length} cars (Page ${currentPage}/${Math.ceil(total/itemsPerPage)})`);
-    
+
     // Build response
     const response = {
       success: true,
@@ -244,7 +239,7 @@ export const getAllCars = async (req, res) => {
       },
       data: cars
     };
-    
+
     res.json(response);
 
   } catch (error) {
@@ -265,45 +260,49 @@ export const checkCarAvailability = async (req, res) => {
     console.log("=== CHECK CAR AVAILABILITY ===");
     console.log("Car ID:", req.params.id);
     console.log("Query:", req.query);
-    
+
     const { startDate, endDate } = req.query;
-    
+
     if (!startDate || !endDate) {
       return res.status(400).json({
         success: false,
         message: "Please provide both startDate and endDate query parameters"
       });
     }
-    
+
     const car = await Car.findById(req.params.id);
-    
+
     if (!car) {
       return res.status(404).json({
         success: false,
         message: "Car not found"
       });
     }
-    
+
     // Check availability using car method
     const isAvailable = car.isAvailableForDates(startDate, endDate);
-    
+
     // Calculate pricing if available
     let pricing = null;
     if (isAvailable) {
       const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
       const end = new Date(endDate);
-      const timeDiff = end.getTime() - start.getTime();
-      const totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
-      
+      end.setHours(0, 0, 0, 0);
+      const totalDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+
+      // Use shared helper — same formula as createBooking
+      const { subtotal, total } = calculateBookingTotal(car.dailyRate, totalDays, car.securityDeposit);
+
       pricing = {
         dailyRate: car.dailyRate,
         securityDeposit: car.securityDeposit,
         totalDays,
-        subtotal: car.dailyRate * totalDays,
-        totalAmount: (car.dailyRate * totalDays) + car.securityDeposit
+        subtotal,
+        totalAmount: total
       };
     }
-    
+
     res.json({
       success: true,
       available: isAvailable,
@@ -325,14 +324,14 @@ export const checkCarAvailability = async (req, res) => {
 
   } catch (error) {
     console.error("❌ Check availability error:", error.message);
-    
+
     if (error.name === 'CastError') {
       return res.status(400).json({
         success: false,
         message: "Invalid car ID"
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Server error while checking availability"
@@ -346,9 +345,9 @@ export const checkCarAvailability = async (req, res) => {
 export const getPopularCars = async (req, res) => {
   try {
     console.log("=== GET POPULAR CARS ===");
-    
+
     const { limit = 6 } = req.query;
-    
+
     // Get cars with most bookings
     const popularCars = await Car.find({
       isAvailable: true,
@@ -357,9 +356,9 @@ export const getPopularCars = async (req, res) => {
       .sort({ 'bookedDates': -1 }) // Sort by number of bookings (length of bookedDates array)
       .limit(parseInt(limit))
       .select('-bookedDates -addedBy -isActive');
-    
+
     console.log(`✅ Found ${popularCars.length} popular cars`);
-    
+
     res.json({
       success: true,
       count: popularCars.length,
@@ -381,9 +380,9 @@ export const getPopularCars = async (req, res) => {
 export const getFeaturedCars = async (req, res) => {
   try {
     console.log("=== GET FEATURED CARS ===");
-    
+
     const { limit = 4 } = req.query;
-    
+
     // Get cars with premium features
     const featuredCars = await Car.find({
       isAvailable: true,
@@ -397,9 +396,9 @@ export const getFeaturedCars = async (req, res) => {
       .sort({ dailyRate: -1 }) // Most expensive first (usually premium)
       .limit(parseInt(limit))
       .select('-bookedDates -addedBy -isActive');
-    
+
     console.log(`✅ Found ${featuredCars.length} featured cars`);
-    
+
     res.json({
       success: true,
       count: featuredCars.length,
@@ -421,10 +420,10 @@ export const getCarById = async (req, res) => {
   try {
     console.log("=== GET CAR BY ID REQUEST ===");
     console.log("Car ID:", req.params.id);
-    
+
     const car = await Car.findById(req.params.id)
       .select('-bookedDates -addedBy -isActive'); // Exclude sensitive fields
-    
+
     if (!car) {
       console.log("❌ Car not found");
       return res.status(404).json({
@@ -432,9 +431,9 @@ export const getCarById = async (req, res) => {
         message: "Car not found"
       });
     }
-    
+
     console.log("✅ Car found:", car.make, car.model);
-    
+
     res.json({
       success: true,
       data: car
@@ -442,14 +441,14 @@ export const getCarById = async (req, res) => {
 
   } catch (error) {
     console.error("❌ Get car by ID error:", error.message);
-    
+
     if (error.name === 'CastError') {
       return res.status(400).json({
         success: false,
         message: "Invalid car ID"
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: "Server error while fetching car"
@@ -484,10 +483,17 @@ export const updateCar = async (req, res) => {
       });
     }
 
-    // Prevent a dealer from reassigning a car to someone else via body injection
     const updateData = { ...req.body };
-    delete updateData.addedBy;
 
+    // Prevent ownership / history tampering
+    delete updateData.addedBy;
+    delete updateData.bookedDates;
+    delete updateData.isActive;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
+    if (!isAdmin) delete updateData.isActive;
+    
     car = await Car.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true
@@ -566,7 +572,6 @@ export const getMyCars = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error fetching your cars" });
   }
 };
-// Add this to your carController.js
 
 // @desc    Get all cars for admin (with more details)
 // @route   GET /api/cars/admin/all

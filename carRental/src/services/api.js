@@ -1,54 +1,44 @@
 // src/services/api.js
 import axios from 'axios';
 
-// Create axios instance
+const isProd = import.meta.env.PROD;
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000/api',
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
-// Add request interceptor for debugging
+// ── Request interceptor ─────────────────────────────────────────────────────
 api.interceptors.request.use(
   (config) => {
-    console.log(`API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
-    console.log('Request Data:', config.data);
-    
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (!isProd) {
+      console.log(`API → ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     }
+    const token = localStorage.getItem('token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
-  (error) => {
-    console.error('Request Error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Add response interceptor for debugging
+// ── Response interceptor ────────────────────────────────────────────────────
 api.interceptors.response.use(
   (response) => {
-    console.log(`API Response Success: ${response.status}`, response.data);
+    if (!isProd) {
+      console.log(`API ← ${response.status} ${response.config?.url}`);
+    }
     return response;
   },
   (error) => {
-    console.error('API Error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      url: error.config?.url,
-    });
-    
-    // Handle network errors
-    if (!error.response) {
-      console.error('Network Error - Is the backend server running?');
-      console.error('Backend URL:', import.meta.env.VITE_API_URL);
+    if (!isProd) {
+      console.error('API error:', {
+        message: error.message,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
     }
-    
     return Promise.reject(error);
   }
 );

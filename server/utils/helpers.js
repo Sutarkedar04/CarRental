@@ -1,8 +1,8 @@
- import jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
+const generateToken = (id, role) => {
+  return jwt.sign({ id, role }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '7d',
   });
 };
 
@@ -12,13 +12,4 @@ const calculateBookingTotal = (dailyRate, totalDays, securityDeposit) => {
   return { subtotal, total };
 };
 
-const checkDateAvailability = (bookedDates, startDate, endDate) => {
-  // Logic to check if dates overlap with existing bookings
-  // We'll implement this when we create booking controller
-};
-
-export { 
-  generateToken, 
-  calculateBookingTotal, 
-  checkDateAvailability 
-};
+export { generateToken, calculateBookingTotal };

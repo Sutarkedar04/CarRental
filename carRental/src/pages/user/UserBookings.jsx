@@ -50,26 +50,26 @@ const UserBookings = () => {
     }
   };
 
-  const filterBookings = () => {
-    let filtered = bookings;
+ const filterBookings = () => {
+  let filtered = bookings;
 
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(booking =>
-        booking.car?.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.car?.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking._id.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    filtered = filtered.filter((booking) => {
+      const car = booking.car || {};
+      const make = (car.make || car.brand || '').toLowerCase();
+      const model = (car.model || '').toLowerCase();
+      const bookingId = (booking._id || '').toLowerCase();
+      return make.includes(q) || model.includes(q) || bookingId.includes(q);
+    });
+  }
 
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.status === statusFilter);
-    }
+  if (statusFilter !== 'all') {
+    filtered = filtered.filter((booking) => booking.status === statusFilter);
+  }
 
-    setFilteredBookings(filtered);
-  };
-
+  setFilteredBookings(filtered);
+};
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',

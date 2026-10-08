@@ -391,18 +391,27 @@ const SignUp = () => {
   );
 };
 
+const BENEFIT_STYLES = {
+  blue:   { bg: 'bg-blue-500/20',   dot: 'bg-blue-400'   },
+  green:  { bg: 'bg-green-500/20',  dot: 'bg-green-400'  },
+  purple: { bg: 'bg-purple-500/20', dot: 'bg-purple-400' },
+  yellow: { bg: 'bg-yellow-500/20', dot: 'bg-yellow-400' },
+};
 // Small reusable bits kept in the same file to avoid extra imports
-const Benefit = ({ color, title, desc }) => (
-  <div className="flex items-start gap-3">
-    <div className={`bg-${color}-500/20 p-2 rounded-lg`}>
-      <div className={`w-2 h-2 bg-${color}-400 rounded-full`}></div>
+const Benefit = ({ color, title, desc }) => {
+  const styles = BENEFIT_STYLES[color] ?? BENEFIT_STYLES.blue;
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`${styles.bg} p-2 rounded-lg`}>
+        <div className={`w-2 h-2 ${styles.dot} rounded-full`}></div>
+      </div>
+      <div>
+        <h3 className="font-semibold text-white">{title}</h3>
+        <p className="text-gray-400 text-sm">{desc}</p>
+      </div>
     </div>
-    <div>
-      <h3 className="font-semibold text-white">{title}</h3>
-      <p className="text-gray-400 text-sm">{desc}</p>
-    </div>
-  </div>
-);
+  );
+};
 
 const Field = ({ label, icon: Icon, type = 'text', value, onChange, onInputChange, placeholder, error, disabled }) => (
   <div className="mb-6">
